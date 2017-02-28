@@ -41,6 +41,10 @@
 	
 #ifdef CONFIG_SCHED_NEW_POLICY
 #define SCHED_NEW		6
+// todo check numbers
+#define MIN_TICKETS		1
+#define MAX_TICKETS		120
+#define TICKETS_PER_PRIORITY		1
 #endif
 
 /* Can be ORed in to make sure the process is reverted back to SCHED_NORMAL on fork */
