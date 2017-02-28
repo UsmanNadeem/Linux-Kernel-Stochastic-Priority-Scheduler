@@ -41,9 +41,9 @@
 	
 #ifdef CONFIG_SCHED_NEWPOLICY_POLICY
 #define SCHED_NEWPOLICY		6
-// todo check numbers
+// todo check numbers priority = 0-139 zero being the highest
 #define MIN_TICKETS		1
-#define MAX_TICKETS		120
+#define MAX_TICKETS		140
 #define TICKETS_PER_PRIORITY		1
 #endif
 

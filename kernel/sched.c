@@ -6509,6 +6509,9 @@ recheck:
 
 	oldprio = p->prio;
 	prev_class = p->sched_class;
+
+	p->numTickets = MAX_TICKETS - param->sched_priority;
+
 	__setscheduler(rq, p, policy, param->sched_priority);
 
 	if (running)
