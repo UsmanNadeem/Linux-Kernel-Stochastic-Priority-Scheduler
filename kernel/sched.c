@@ -516,6 +516,16 @@ static struct root_domain def_root_domain;
 
 #endif
 
+#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+
+// I dont think we need a rb tree since we will be iterating....just use a list
+struct NEWPOLICY_rq {
+	// struct rb_root casio_rb_root;
+	struct list_head NEWPOLICY_list_head;
+	atomic_t nr_running;
+};
+#endif
+
 /*
  * This is the main, per-CPU runqueue data structure.
  *
@@ -526,6 +536,9 @@ static struct root_domain def_root_domain;
 struct rq {
 	/* runqueue lock: */
 	spinlock_t lock;
+	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+		struct NEWPOLICY_rq NEWPOLICY_rq;
+	#endif
 
 	/*
 	 * nr_running and cpu_load should be in the same cacheline because
@@ -1853,7 +1866,16 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 # include "sched_debug.c"
 #endif
 
-#define sched_class_highest (&rt_sched_class)
+#ifdef	CONFIG_SCHED_NEWPOLICY_POLICY
+# include "sched_newpolicy.c"
+#endif
+
+#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+	#define sched_class_highest (&newpolicy_sched_class)
+#else
+	#define sched_class_highest (&rt_sched_class)
+#endif
+
 #define for_each_class(class) \
    for (class = sched_class_highest; class; class = class->next)
 
@@ -6333,6 +6355,11 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
 	case SCHED_RR:
 		p->sched_class = &rt_sched_class;
 		break;
+	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+	case SCHED_NEWPOLICY:
+		p->sched_class = &newpolicy_sched_class;
+		break;
+	#endif
 	}
 
 	p->rt_priority = prio;
@@ -6380,7 +6407,11 @@ recheck:
 
 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
 				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
-				policy != SCHED_IDLE)
+				policy != SCHED_IDLE
+				#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+				&& policy !=SCHED_NEWPOLICY
+				#endif
+				)
 			return -EINVAL;
 	}
 
@@ -9607,6 +9638,10 @@ void __init sched_init(void)
 		init_task_group.shares = init_task_group_load;
 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
 #ifdef CONFIG_CGROUP_SCHED
+
+	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+		init_newpolicy_rq(&rq->NEWPOLICY_rq);
+	#endif
 		/*
 		 * How much cpu bandwidth does init_task_group get?
 		 *
