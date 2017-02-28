@@ -39,8 +39,8 @@
 /* SCHED_ISO: reserved but not implemented yet */
 #define SCHED_IDLE		5
 	
-#ifdef CONFIG_SCHED_NEW_POLICY
-#define SCHED_NEW		6
+#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+#define SCHED_NEWPOLICY		6
 // todo check numbers
 #define MIN_TICKETS		1
 #define MAX_TICKETS		120
@@ -1231,7 +1231,7 @@ struct sched_rt_entity {
 struct rcu_node;
 
 struct task_struct {
-	#ifdef CONFIG_SCHED_NEW_POLICY
+	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
 		unsigned long long numTickets;
 	#endif
 

@@ -2079,10 +2079,10 @@ config HAVE_ATOMIC_IOMAP
 	def_bool y
 	depends on X86_32
 
-menu "NEW scheduler"
+menu "NEWPOLICY scheduler"
 
-config SCHED_NEW_POLICY
-	bool "NEW scheduling policy"
+config SCHED_NEWPOLICY_POLICY
+	bool "NEWPOLICY scheduling policy"
 	default y
 endmenu
 
