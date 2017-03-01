@@ -520,7 +520,7 @@ static struct root_domain def_root_domain;
 
 // I dont think we need a rb tree since we will be iterating....just use a list
 struct NEWPOLICY_rq {
-	// struct rb_root casio_rb_root;
+	struct task_struct *task;
 	struct list_head NEWPOLICY_list_head;
 	atomic_t nr_running;
 };
