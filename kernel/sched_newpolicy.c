@@ -10,7 +10,7 @@ static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wak
 {
 	if(p){
 		struct NEWPOLICY_rq *newNode;
-		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_KERNEL);
+		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_ATOMIC);
 		if (newNode == NULL) {
 			printk(KERN_INFO "Error in enqueue_task_newpolicy: kzalloc\n");
 			return;
@@ -55,7 +55,7 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 	}
 
 	// generate random number from 1-totalTickets
-	randomNumber = (int*) kzalloc(sizeof(int), GFP_KERNEL);
+	randomNumber = (int*) kzalloc(sizeof(int), GFP_ATOMIC);
 
 	if (randomNumber == NULL) {
 		printk(KERN_INFO "Error in pick_next_task_newpolicy: kzalloc\n");
