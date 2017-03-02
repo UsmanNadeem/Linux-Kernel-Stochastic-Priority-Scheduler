@@ -139,13 +139,6 @@ static void prio_changed_newpolicy(struct rq *rq, struct task_struct *p,
 }
 
 
-static void set_curr_task_newpolicy(struct rq *rq)
-{
-	
-
-}
-
-
 
 static const struct sched_class newpolicy_sched_class = {
 	.next 			= &fair_sched_class,
@@ -162,7 +155,6 @@ static const struct sched_class newpolicy_sched_class = {
 	.yield_task		= yield_task_newpolicy,
 
 	// added later
-	.set_curr_task          = set_curr_task_newpolicy,
 	.switched_to		= switched_to_newpolicy,
 	.prio_changed		= prio_changed_newpolicy,
 
