@@ -122,7 +122,7 @@ static void yield_task_newpolicy(struct rq *rq)
 
 
 static const struct sched_class newpolicy_sched_class = {
-	.next 			= &rt_sched_class,
+	.next 			= &fair_sched_class,
 	.enqueue_task		= enqueue_task_newpolicy,
 	.dequeue_task		= dequeue_task_newpolicy,
 

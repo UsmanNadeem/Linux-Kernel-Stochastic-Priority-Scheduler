@@ -1874,11 +1874,11 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 # include "sched_newpolicy.c"
 #endif
 
-#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
-	#define sched_class_highest (&newpolicy_sched_class)
-#else
+//#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+//	#define sched_class_highest (&newpolicy_sched_class)
+//#else
 	#define sched_class_highest (&rt_sched_class)
-#endif
+//#endif
 
 #define for_each_class(class) \
    for (class = sched_class_highest; class; class = class->next)
