@@ -121,7 +121,11 @@
 
 static inline int rt_policy(int policy)
 {
-	if (unlikely(policy == SCHED_FIFO || policy == SCHED_RR))
+	if (unlikely(policy == SCHED_FIFO || policy == SCHED_RR
+		#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+		|| policy == SCHED_NEWPOLICY
+		#endif
+	))
 		return 1;
 	return 0;
 }
