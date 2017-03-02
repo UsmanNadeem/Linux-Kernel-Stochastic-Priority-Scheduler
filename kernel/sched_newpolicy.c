@@ -17,7 +17,7 @@ static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wak
 		}
 		newNode->task = p;
 
-		list_add (&(newNode->NEWPOLICY_list_head), &(rq->NEWPOLICY_rq->NEWPOLICY_list_head));
+		list_add (&(newNode->NEWPOLICY_list_head), &(rq->NEWPOLICY_rq.NEWPOLICY_list_head));
 		atomic_inc(&rq->NEWPOLICY_rq.nr_running);
 	}
 }
@@ -26,7 +26,7 @@ static void dequeue_task_newpolicy(struct rq *rq, struct task_struct *p, int sle
 {
 	if(rq && p) {
 		struct NEWPOLICY_rq *tempNode, *next;
-		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq->NEWPOLICY_list_head), NEWPOLICY_list_head) {
+		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 			if (tempNode && tempNode->task == p) {
 				list_del(&tempNode->NEWPOLICY_list_head);
 				kfree(tempNode);
@@ -38,14 +38,14 @@ static void dequeue_task_newpolicy(struct rq *rq, struct task_struct *p, int sle
 }
 
 // todo
-static struct task_struct *pick_next_task_casio(struct rq *rq)
+static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 {
 	struct NEWPOLICY_rq *t=NULL;
 	struct NEWPOLICY_rq *tempNode, *next;
 	unsigned long long totalTickets = 0;
 	unsigned long long runningTotal = 0;
 	unsigned int *randomNumber;
-	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq->NEWPOLICY_list_head), NEWPOLICY_list_head) {
+	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 		if (tempNode) {
 			totalTickets += tempNode->task->numTickets;
 		}
@@ -58,18 +58,20 @@ static struct task_struct *pick_next_task_casio(struct rq *rq)
 	randomNumber = (int*) kmalloc(sizeof(int), GFP_KERNEL);
 
 	if (randomNumber == NULL) {
-		printk(KERN_INFO "Error in pick_next_task_casio: kmalloc\n");
+		printk(KERN_INFO "Error in pick_next_task_newpolicy: kmalloc\n");
 		return NULL;
 	}
 
 	*randomNumber = 0;
-	while (*randomNumber < 1 && *randomNumber > totalTickets)
-		get_random_bytes(randomNumber, sizeof(unsigned int));
+	get_random_bytes(randomNumber, sizeof(unsigned int));
+	*randomNumber = (*randomNumber)%totalTickets +1;
+	// while (*randomNumber < 1 && *randomNumber > totalTickets)
+		// get_random_bytes(randomNumber, sizeof(unsigned int));
 
-	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq->NEWPOLICY_list_head), NEWPOLICY_list_head) {
+	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 		if (tempNode) {
-			runningTotal += tempNode->numTickets;  // would be atleast 1
-			if (runningTotal >= randomNumber) {
+			runningTotal += tempNode->task->numTickets;  // would be atleast 1
+			if (runningTotal >= *randomNumber) {
 				t = tempNode;
 			}
 		}
