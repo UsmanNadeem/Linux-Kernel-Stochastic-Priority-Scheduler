@@ -118,6 +118,32 @@ static void yield_task_newpolicy(struct rq *rq)
 	// dont need to do anything
 }
 
+/*
+ * When switching a task to RT, we may overload the runqueue
+ * with RT tasks. In this case we try to push them off to
+ * other runqueues.
+ */
+static void switched_to_newpolicy(struct rq *rq, struct task_struct *p,
+                           int running)
+{
+	
+        p->numTickets = MAX_TICKETS - p->prio;
+}
+
+
+
+static void prio_changed_newpolicy(struct rq *rq, struct task_struct *p,
+			    int oldprio, int running)
+{
+	p->numTickets = MAX_TICKETS - p->prio;
+}
+
+
+static void set_curr_task_newpolicy(struct rq *rq)
+{
+	
+
+}
 
 
 
@@ -134,5 +160,10 @@ static const struct sched_class newpolicy_sched_class = {
 	.set_curr_task          = set_curr_task_newpolicy,
 	.task_tick		= task_tick_newpolicy,
 	.yield_task		= yield_task_newpolicy,
+
+	// added later
+	.set_curr_task          = set_curr_task_newpolicy,
+	.switched_to		= switched_to_newpolicy,
+	.prio_changed		= prio_changed_newpolicy,
 
 };
