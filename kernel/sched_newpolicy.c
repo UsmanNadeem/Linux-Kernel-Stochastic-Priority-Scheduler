@@ -97,16 +97,25 @@ static void put_prev_task_newpolicy(struct rq *rq, struct task_struct *p)
 
 static void set_curr_task_newpolicy(struct rq *rq)
 {
-	// empty
+/* Account for a task changing its policy or group.
+ *
+ * This routine is mostly called to set cfs_rq->curr field when a task
+ * migrates between groups/classes.
+ */
+
+	// dont do anything
 }
 
 
 static void task_tick_newpolicy(struct rq *rq, struct task_struct *p, int queued)
 {
-	if (queued) {
-		// resched_task(rq->curr);
+	//if (queued) {
+		//resched_task(rq->curr);
 		resched_task(p);
-	}
+	//} //else {
+	//	if (rq->nr_running > 1)
+        //		check_preempt_tick(cfs_rq, curr);
+	//}
 }
 
 
@@ -114,8 +123,9 @@ static void task_tick_newpolicy(struct rq *rq, struct task_struct *p, int queued
 
 static void yield_task_newpolicy(struct rq *rq)
 {
-	// resched_task(rq->curr);
+	//resched_task(rq->curr);
 	// dont need to do anything
+	// usually dequeue and enqueue
 }
 
 /*
@@ -126,8 +136,10 @@ static void yield_task_newpolicy(struct rq *rq)
 static void switched_to_newpolicy(struct rq *rq, struct task_struct *p,
                            int running)
 {
-	
-        p->numTickets = MAX_TICKETS - p->prio;
+	p->numTickets = MAX_TICKETS - p->prio;
+	if (running)
+		resched_task(rq->curr);
+        
 }
 
 
