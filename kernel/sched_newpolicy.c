@@ -1,5 +1,9 @@
 #include <linux/random.h>
 
+#ifndef NEWPOLICY_CLASS
+#define NEWPOLICY_CLASS
+const struct sched_class newpolicy_sched_class;
+#endif
 void init_newpolicy_rq(struct NEWPOLICY_rq *newpolicy_rq)
 {
 	INIT_LIST_HEAD(&newpolicy_rq->NEWPOLICY_list_head);
@@ -9,6 +13,8 @@ void init_newpolicy_rq(struct NEWPOLICY_rq *newpolicy_rq)
 static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wakeup, bool head)
 {
 	if(p){
+		p->rt.time_slice = DEF_TIMESLICE;  // reset
+		// #define DEF_TIMESLICE		(100 * HZ / 1000)
 		struct NEWPOLICY_rq *newNode;
 		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_ATOMIC);
 		if (newNode == NULL) {
@@ -18,7 +24,7 @@ static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wak
 		newNode->task = p;
 
 		list_add (&(newNode->NEWPOLICY_list_head), &(rq->NEWPOLICY_rq.NEWPOLICY_list_head));
-		atomic_inc(&rq->NEWPOLICY_rq.nr_running);
+		atomic_inc(&(rq->NEWPOLICY_rq.nr_running));
 	}
 }
 
@@ -30,14 +36,14 @@ static void dequeue_task_newpolicy(struct rq *rq, struct task_struct *p, int sle
 			if (tempNode && tempNode->task == p) {
 				list_del(&tempNode->NEWPOLICY_list_head);
 				kfree(tempNode);
-				atomic_dec(&rq->NEWPOLICY_rq.nr_running);
+				atomic_dec(&(rq->NEWPOLICY_rq.nr_running));
 				return;
 			}
 		}
 	}
 }
 
-// todo
+
 static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 {
 	struct NEWPOLICY_rq *t=NULL;
@@ -45,8 +51,11 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 	unsigned long long totalTickets = 0;
 	unsigned long long runningTotal = 0;
 	unsigned int *randomNumber;
+	if (rq->NEWPOLICY_rq.nr_running.counter == 0)
+        	return NULL;
+
 	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
-		if (tempNode) {
+		if (tempNode && tempNode->task) {
 			totalTickets += tempNode->task->numTickets;
 		}
 	}
@@ -69,7 +78,7 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 		// get_random_bytes(randomNumber, sizeof(unsigned int));
 
 	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
-		if (tempNode) {
+		if (tempNode && tempNode->task) {
 			runningTotal += tempNode->task->numTickets;  // would be atleast 1
 			if (runningTotal >= *randomNumber) {
 				t = tempNode;
@@ -78,7 +87,8 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 	}	
 	kfree(randomNumber);
 
-	if(t){
+	if(t && t->task){
+		//dequeue_task_newpolicy(rq, t->task, 0);
 		return t->task;
 	}
 	return NULL;
@@ -86,12 +96,35 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 
 static void check_preempt_curr_newpolicy(struct rq *rq, struct task_struct *p, int flags)
 {
-	// do nothing...we only reschedule on timer tick
+	// This function checks if a task that entered the runnable state should
+	// preempt the currently running task.
+		//if (p->sched_class != &idle_sched_class && p->sched_class != &fair_sched_class )
+		if (p->sched_class == &newpolicy_sched_class) { // preempt without checking prio because it doesnt matter
+        		resched_task(rq->curr);
+		} else if (rt_prio(p->prio)) {
+			resched_task(rq->curr);
+		}
 }
 
 
 static void put_prev_task_newpolicy(struct rq *rq, struct task_struct *p)
 {
+	if (p->state & TASK_DEAD)
+		return;
+
+	if(rq && p) {
+		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice 
+		//#define DEF_TIMESLICE		(100 * HZ / 1000)
+
+
+		struct NEWPOLICY_rq *tempNode, *next;
+		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
+			if (tempNode && tempNode->task == p) {
+				// already exists
+				return;
+			}
+		}
+	}
 	enqueue_task_newpolicy(rq, p, 0, false);
 }
 
@@ -103,15 +136,25 @@ static void set_curr_task_newpolicy(struct rq *rq)
  * migrates between groups/classes.
  */
 
-	// dont do anything
+	rq->curr->numTickets = MAX_TICKETS - rq->curr->prio;
 }
 
 
 static void task_tick_newpolicy(struct rq *rq, struct task_struct *p, int queued)
 {
-	//if (queued) {
-		//resched_task(rq->curr);
+	if (--p->rt.time_slice)  // decrement timeslice and if not 0 no need to do anything
+		return;
+
+	p->rt.time_slice = DEF_TIMESLICE;  // reset
+	// #define DEF_TIMESLICE		(100 * HZ / 1000)
+
+	if (rq->NEWPOLICY_rq.nr_running.counter > 1)
 		resched_task(p);
+	
+	//atomic_t i = 1;
+	//if (queued && rq->NEWPOLICY_rq.nr_running.counter > 1) {  // dont know what queued variable is
+	//	resched_task(rq->curr);
+		//resched_task(p);
 	//} //else {
 	//	if (rq->nr_running > 1)
         //		check_preempt_tick(cfs_rq, curr);
@@ -125,7 +168,10 @@ static void yield_task_newpolicy(struct rq *rq)
 {
 	//resched_task(rq->curr);
 	// dont need to do anything
-	// usually dequeue and enqueue
+
+	// This function is basically just a dequeue followed by an enqueue, unless the
+	// compat_yield sysctl is turned on; in that case, it places the scheduling
+	// entity at the right-most end of the red-black tree.
 }
 
 /*
@@ -137,8 +183,8 @@ static void switched_to_newpolicy(struct rq *rq, struct task_struct *p,
                            int running)
 {
 	p->numTickets = MAX_TICKETS - p->prio;
-	if (running)
-		resched_task(rq->curr);
+	//if (running)
+	//	resched_task(rq->curr);
         
 }
 
@@ -152,7 +198,7 @@ static void prio_changed_newpolicy(struct rq *rq, struct task_struct *p,
 
 
 
-static const struct sched_class newpolicy_sched_class = {
+const struct sched_class newpolicy_sched_class = {
 	.next 			= &fair_sched_class,
 	.enqueue_task		= enqueue_task_newpolicy,
 	.dequeue_task		= dequeue_task_newpolicy,

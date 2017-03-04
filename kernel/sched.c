@@ -1865,14 +1865,14 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 #include "sched_stats.h"
 #include "sched_idletask.c"
 #include "sched_fair.c"
+#ifdef	CONFIG_SCHED_NEWPOLICY_POLICY
+# include "sched_newpolicy.c"
+#endif
 #include "sched_rt.c"
 #ifdef CONFIG_SCHED_DEBUG
 # include "sched_debug.c"
 #endif
 
-#ifdef	CONFIG_SCHED_NEWPOLICY_POLICY
-# include "sched_newpolicy.c"
-#endif
 
 //#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
 //	#define sched_class_highest (&newpolicy_sched_class)
