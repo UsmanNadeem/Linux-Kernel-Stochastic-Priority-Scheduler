@@ -14,13 +14,14 @@ static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wak
 {
 	if(p){
 		struct NEWPOLICY_rq *newNode;
-		p->rt.time_slice = DEF_TIMESLICE;  // reset
+		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice on enqueue
 		// #define DEF_TIMESLICE		(100 * HZ / 1000)
 		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_KERNEL);
 		if (newNode == NULL) {
 			printk(KERN_INFO "Error in enqueue_task_newpolicy: kzalloc\n");
 			return;
 		}
+		p->numTickets = MAX_TICKETS - p->prio;
 		newNode->task = p;
 
 		list_add (&(newNode->NEWPOLICY_list_head), &(rq->NEWPOLICY_rq.NEWPOLICY_list_head));
@@ -51,7 +52,8 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 	unsigned long long totalTickets = 0;
 	unsigned long long runningTotal = 0;
 	unsigned int *randomNumber;
-	if (rq->NEWPOLICY_rq.nr_running.counter == 0)
+
+	if (rq->NEWPOLICY_rq.nr_running.counter == 0)  // list is empty
         	return NULL;
 
 	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
@@ -59,6 +61,7 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 			totalTickets += tempNode->task->numTickets;
 		}
 	}
+
 	if (totalTickets == 0) {
 		return NULL;
 	}
@@ -73,24 +76,26 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 
 	*randomNumber = 0;
 	get_random_bytes(randomNumber, sizeof(unsigned int));
-	*randomNumber = (*randomNumber)%totalTickets +1;
-	// while (*randomNumber < 1 && *randomNumber > totalTickets)
-		// get_random_bytes(randomNumber, sizeof(unsigned int));
+	*randomNumber = (*randomNumber)%totalTickets +1;  // mod is biased
+
+	//while (*randomNumber < 1 || *randomNumber > totalTickets)
+	//	get_random_bytes(randomNumber, sizeof(unsigned int));
 
 	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
-		if (tempNode && tempNode->task) {
+		if (tempNode && tempNode->task && !t) {
 			runningTotal += tempNode->task->numTickets;  // would be atleast 1
 			if (runningTotal >= *randomNumber) {
 				t = tempNode;
+				break;
 			}
 		}
 	}	
 	kfree(randomNumber);
 
-	if(t && t->task){
-		//dequeue_task_newpolicy(rq, t->task, 0);
+	if(t && t->task) {
 		return t->task;
 	}
+
 	return NULL;
 }
 
@@ -98,23 +103,16 @@ static void check_preempt_curr_newpolicy(struct rq *rq, struct task_struct *p, i
 {
 	// This function checks if a task that entered the runnable state should
 	// preempt the currently running task.
-		//if (p->sched_class != &idle_sched_class && p->sched_class != &fair_sched_class )
-		if (rq->curr->policy!=SCHED_NEWPOLICY) {
-			resched_task(rq->curr); 
-		}
-		else if (p->policy!=SCHED_IDLE && p->policy!=SCHED_BATCH) {
-			resched_task(rq->curr); 
-		}	 
-		//else if (p->policy==SCHED_NEWPOLICY) { 
-			// preempt without checking prio because it doesnt matter
-        	//	resched_task(rq->curr);
-		//} 
-		else if (rt_prio(p->prio)) {
-			resched_task(rq->curr);
-		} 
-//else if (p->sched_class != &idle_sched_class) {
-		//	resched_task(rq->curr);
-		//}
+
+	//if (p->sched_class != &idle_sched_class && p->sched_class != &fair_sched_class )
+	if (rq->curr->policy!=SCHED_NEWPOLICY) {  // never executes because curr policy is always newpolicy
+		resched_task(rq->curr); 
+	}
+	else if (p->policy!=SCHED_IDLE && p->policy!=SCHED_BATCH) {  // Dont preempt for IDLE and BATCH jobs
+		// preempt for higer priority tasks like RT etc.
+		// preempt without checking prio if same policy because probabilistic lottery system will take of it next time
+		resched_task(rq->curr);
+	}
 }
 
 
@@ -132,12 +130,12 @@ static void put_prev_task_newpolicy(struct rq *rq, struct task_struct *p)
 		
 		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 			if (tempNode && tempNode->task == p) {
-				// already exists
+				// already exists so dont enqueue again
 				return;
 			}
 		}
+		enqueue_task_newpolicy(rq, p, 0, false);
 	}
-	enqueue_task_newpolicy(rq, p, 0, false);
 }
 
 static void set_curr_task_newpolicy(struct rq *rq)
@@ -149,6 +147,7 @@ static void set_curr_task_newpolicy(struct rq *rq)
  */
 
 	rq->curr->numTickets = MAX_TICKETS - rq->curr->prio;
+	//printk(KERN_INFO "Prio is %d\n", rq->curr->prio);
 }
 
 
@@ -160,17 +159,10 @@ static void task_tick_newpolicy(struct rq *rq, struct task_struct *p, int queued
 	p->rt.time_slice = DEF_TIMESLICE;  // reset
 	// #define DEF_TIMESLICE		(100 * HZ / 1000)
 
-	if (rq->NEWPOLICY_rq.nr_running.counter > 1)
+	if (rq->NEWPOLICY_rq.nr_running.counter > 1)  
+		// if there is another task on the rq reschedule 
+		// otherwise there is no need to do context switch
 		resched_task(p);
-	
-	//atomic_t i = 1;
-	//if (queued && rq->NEWPOLICY_rq.nr_running.counter > 1) {  // dont know what queued variable is
-	//	resched_task(rq->curr);
-		//resched_task(p);
-	//} //else {
-	//	if (rq->nr_running > 1)
-        //		check_preempt_tick(cfs_rq, curr);
-	//}
 }
 
 
@@ -178,7 +170,6 @@ static void task_tick_newpolicy(struct rq *rq, struct task_struct *p, int queued
 
 static void yield_task_newpolicy(struct rq *rq)
 {
-	//resched_task(rq->curr);
 	// dont need to do anything
 
 	// This function is basically just a dequeue followed by an enqueue, unless the
@@ -186,18 +177,13 @@ static void yield_task_newpolicy(struct rq *rq)
 	// entity at the right-most end of the red-black tree.
 }
 
-/*
- * When switching a task to RT, we may overload the runqueue
- * with RT tasks. In this case we try to push them off to
- * other runqueues.
- */
+
+
 static void switched_to_newpolicy(struct rq *rq, struct task_struct *p,
                            int running)
 {
 	p->numTickets = MAX_TICKETS - p->prio;
-	//if (running)
-	//	resched_task(rq->curr);
-        
+	printk(KERN_INFO "Prio is %d\n", p->prio);
 }
 
 
@@ -210,8 +196,6 @@ static void prio_changed_newpolicy(struct rq *rq, struct task_struct *p,
 
 static int select_task_rq_newpolicy(struct rq *rq, struct task_struct *p, int sd_flag, int flags) 
 { 
- 
-//  struct rq *rq = task_rq(p); 
  
 	if (sd_flag != SD_BALANCE_WAKE) 
 		return smp_processor_id(); 

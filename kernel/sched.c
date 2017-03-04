@@ -6423,9 +6423,6 @@ recheck:
 			return -EINVAL;
 	}
 
-	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
-		p->numTickets = MAX_TICKETS - param->sched_priority;
-	#endif
 	/*
 	 * Valid priorities for SCHED_FIFO and SCHED_RR are
 	 * 1..MAX_USER_RT_PRIO-1, valid priority for SCHED_NORMAL,
