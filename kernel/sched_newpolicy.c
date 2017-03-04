@@ -13,10 +13,10 @@ void init_newpolicy_rq(struct NEWPOLICY_rq *newpolicy_rq)
 static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wakeup, bool head)
 {
 	if(p){
+		struct NEWPOLICY_rq *newNode;
 		p->rt.time_slice = DEF_TIMESLICE;  // reset
 		// #define DEF_TIMESLICE		(100 * HZ / 1000)
-		struct NEWPOLICY_rq *newNode;
-		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_ATOMIC);
+		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_KERNEL);
 		if (newNode == NULL) {
 			printk(KERN_INFO "Error in enqueue_task_newpolicy: kzalloc\n");
 			return;
@@ -64,7 +64,7 @@ static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
 	}
 
 	// generate random number from 1-totalTickets
-	randomNumber = (int*) kzalloc(sizeof(int), GFP_ATOMIC);
+	randomNumber = (int*) kzalloc(sizeof(int), GFP_KERNEL);
 
 	if (randomNumber == NULL) {
 		printk(KERN_INFO "Error in pick_next_task_newpolicy: kzalloc\n");
@@ -103,7 +103,10 @@ static void check_preempt_curr_newpolicy(struct rq *rq, struct task_struct *p, i
         		resched_task(rq->curr);
 		} else if (rt_prio(p->prio)) {
 			resched_task(rq->curr);
-		}
+		} 
+//else if (p->sched_class != &idle_sched_class) {
+		//	resched_task(rq->curr);
+		//}
 }
 
 
@@ -113,11 +116,10 @@ static void put_prev_task_newpolicy(struct rq *rq, struct task_struct *p)
 		return;
 
 	if(rq && p) {
+		struct NEWPOLICY_rq *tempNode, *next;
 		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice 
 		//#define DEF_TIMESLICE		(100 * HZ / 1000)
 
-
-		struct NEWPOLICY_rq *tempNode, *next;
 		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 			if (tempNode && tempNode->task == p) {
 				// already exists
