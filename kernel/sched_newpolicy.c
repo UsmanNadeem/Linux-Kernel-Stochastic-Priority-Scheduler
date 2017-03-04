@@ -183,7 +183,7 @@ static void switched_to_newpolicy(struct rq *rq, struct task_struct *p,
                            int running)
 {
 	p->numTickets = MAX_TICKETS - p->prio;
-	printk(KERN_INFO "Prio is %d\n", p->prio);
+	//printk(KERN_INFO "Prio is %d\n", p->prio);
 }
 
 
