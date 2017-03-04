@@ -99,9 +99,17 @@ static void check_preempt_curr_newpolicy(struct rq *rq, struct task_struct *p, i
 	// This function checks if a task that entered the runnable state should
 	// preempt the currently running task.
 		//if (p->sched_class != &idle_sched_class && p->sched_class != &fair_sched_class )
-		if (p->sched_class == &newpolicy_sched_class) { // preempt without checking prio because it doesnt matter
-        		resched_task(rq->curr);
-		} else if (rt_prio(p->prio)) {
+		if (rq->curr->policy!=SCHED_NEWPOLICY) {
+			resched_task(rq->curr); 
+		}
+		else if (p->policy!=SCHED_IDLE && p->policy!=SCHED_BATCH) {
+			resched_task(rq->curr); 
+		}	 
+		//else if (p->policy==SCHED_NEWPOLICY) { 
+			// preempt without checking prio because it doesnt matter
+        	//	resched_task(rq->curr);
+		//} 
+		else if (rt_prio(p->prio)) {
 			resched_task(rq->curr);
 		} 
 //else if (p->sched_class != &idle_sched_class) {
@@ -114,12 +122,14 @@ static void put_prev_task_newpolicy(struct rq *rq, struct task_struct *p)
 {
 	if (p->state & TASK_DEAD)
 		return;
+	if (p->state != TASK_RUNNING)
+		return;
 
 	if(rq && p) {
 		struct NEWPOLICY_rq *tempNode, *next;
 		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice 
 		//#define DEF_TIMESLICE		(100 * HZ / 1000)
-
+		
 		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 			if (tempNode && tempNode->task == p) {
 				// already exists
