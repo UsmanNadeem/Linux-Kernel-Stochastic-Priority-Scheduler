@@ -208,10 +208,20 @@ static void prio_changed_newpolicy(struct rq *rq, struct task_struct *p,
 	p->numTickets = MAX_TICKETS - p->prio;
 }
 
+static int select_task_rq_newpolicy(struct rq *rq, struct task_struct *p, int sd_flag, int flags) 
+{ 
+ 
+//  struct rq *rq = task_rq(p); 
+ 
+	if (sd_flag != SD_BALANCE_WAKE) 
+		return smp_processor_id(); 
+ 
+	return task_cpu(p); 
+} 
 
 
 const struct sched_class newpolicy_sched_class = {
-	.next 			= &fair_sched_class,
+	.next 			= &idle_sched_class,
 	.enqueue_task		= enqueue_task_newpolicy,
 	.dequeue_task		= dequeue_task_newpolicy,
 
@@ -228,4 +238,11 @@ const struct sched_class newpolicy_sched_class = {
 	.switched_to		= switched_to_newpolicy,
 	.prio_changed		= prio_changed_newpolicy,
 
+
+//	.get_rr_interval	= get_rr_interval_rt,
+
+#ifdef CONFIG_SMP 
+	.select_task_rq		= select_task_rq_newpolicy,
+
+#endif
 };
