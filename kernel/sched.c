@@ -5590,6 +5590,9 @@ asmlinkage void __sched schedule(void)
 	unsigned long *switch_count;
 	struct rq *rq;
 	int cpu;
+	
+	/*NEWPOLICY_sched_log*/
+	char msg[NEWPOLICY_MSG_SIZE];
 
 need_resched:
 	preempt_disable();
@@ -5621,11 +5624,38 @@ need_resched_nonpreemptible:
 
 	pre_schedule(rq, prev);
 
+
 	if (unlikely(!rq->nr_running))
 		idle_balance(cpu, rq);
 
 	put_prev_task(rq, prev);
 	next = pick_next_task(rq);
+
+
+    /* Log context switch events for NEWPOLICY scheduler */
+#ifdef  CONFIG_SCHED_NEWPOLICY_POLICY
+	if(prev->policy == SCHED_NEWPOLICY || next->policy == SCHED_NEWPOLICY) {
+		/* if both processes have NEWPOLICY scheduling class, the message 
+		* format is to print only PIDs of both the processes */
+		if(prev->policy == SCHED_NEWPOLICY && next->policy == SCHED_NEWPOLICY) {
+			snprintf(msg, NEWPOLICY_MSG_SIZE, "prev->(%d), next->(%d)", 
+				prev->pid, next->pid);
+		} else {
+			/* if scheduling class of one of the processes is not SCHED_NEWPOLICY
+			 * print an aesterik before its PID to indicate so. */
+			if(prev->policy==SCHED_NEWPOLICY){
+				snprintf(msg, NEWPOLICY_MSG_SIZE, "prev->(%d),next->(*%d)", 
+					prev->pid, next->pid);
+			} else {
+				snprintf(msg, NEWPOLICY_MSG_SIZE, "prev->(*%d),next->(%d)", 
+					prev->pid, next->pid);
+			}     
+		}     
+		/* Add the event to the newpolicy_event_log*/
+		register_newpolicy_event(sched_clock(), msg, NEWPOLICY_CONTEXT_SWITCH);
+	}
+#endif
+
 
 	if (likely(prev != next)) {
 		sched_info_switch(prev, next);
@@ -9776,6 +9806,9 @@ void __init sched_init(void)
 #endif /* SMP */
 
 	perf_event_init();
+	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
+		init_newpolicy_event_log();
+	#endif
 
 	scheduler_running = 1;
 }

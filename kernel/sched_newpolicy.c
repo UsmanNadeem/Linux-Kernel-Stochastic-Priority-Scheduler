@@ -4,6 +4,47 @@
 #define NEWPOLICY_CLASS
 const struct sched_class newpolicy_sched_class;
 #endif
+
+/**
+ *  * Log functions for the scheduler
+ *   */
+struct newpolicy_event_log newpolicy_event_log;
+
+/**
+ *  * Return newpolicy_event_log structure
+ *   */
+struct newpolicy_event_log * get_newpolicy_event_log()
+{
+        return &newpolicy_event_log;
+}
+
+void init_newpolicy_event_log(void)
+{
+    char msg[NEWPOLICY_MSG_SIZE];
+    newpolicy_event_log.lines = newpolicy_event_log.cursor = 0;
+    /* Add initialization message to the buffer */
+    snprintf(msg, NEWPOLICY_MSG_SIZE, "init_newpolicy_event_log : (Lines: %lu - Cursor: %lu)",
+            newpolicy_event_log.lines, newpolicy_event_log.cursor);
+
+    register_newpolicy_event(sched_clock(), msg, NEWPOLICY_MSG);
+}
+
+
+void register_newpolicy_event(unsigned long long t, char *m, int a)
+{
+    /* Set action, timestamp and message in the structure newpolicy_event */
+    if(newpolicy_event_log.lines < NEWPOLICY_MAX_EVENT_LINES) {
+        newpolicy_event_log.newpolicy_event[newpolicy_event_log.lines].action = a;
+        newpolicy_event_log.newpolicy_event[newpolicy_event_log.lines].timestamp = t;
+       strncpy(newpolicy_event_log.newpolicy_event[newpolicy_event_log.lines].msg,
+                m, NEWPOLICY_MSG_SIZE-1);
+        newpolicy_event_log.lines++;
+    } else {
+        printk(KERN_ALERT "register_newpolicy_event: full\n");
+    }
+}
+
+
 void init_newpolicy_rq(struct NEWPOLICY_rq *newpolicy_rq)
 {
 	INIT_LIST_HEAD(&newpolicy_rq->NEWPOLICY_list_head);
@@ -11,7 +52,8 @@ void init_newpolicy_rq(struct NEWPOLICY_rq *newpolicy_rq)
 }
 
 static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wakeup, bool head)
-{
+{	
+	char msg[NEWPOLICY_MSG_SIZE];
 	if(p){
 		struct NEWPOLICY_rq *newNode;
 		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice on enqueue
@@ -26,15 +68,24 @@ static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wak
 
 		list_add (&(newNode->NEWPOLICY_list_head), &(rq->NEWPOLICY_rq.NEWPOLICY_list_head));
 		atomic_inc(&(rq->NEWPOLICY_rq.nr_running));
+
+		snprintf(msg, NEWPOLICY_MSG_SIZE, "(PID: %d : Tickets: %llu)", p->pid, p->numTickets);
+		/* Register Enqueue event with newpolicy_event_log */
+		register_newpolicy_event(sched_clock(), msg, NEWPOLICY_ENQUEUE);
 	}
 }
 
 static void dequeue_task_newpolicy(struct rq *rq, struct task_struct *p, int sleep)
 {
+	char msg[NEWPOLICY_MSG_SIZE];
 	if(rq && p) {
 		struct NEWPOLICY_rq *tempNode, *next;
 		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
 			if (tempNode && tempNode->task == p) {
+				snprintf(msg, NEWPOLICY_MSG_SIZE, "(PID: %d : Tickets: %llu)", p->pid, p->numTickets);
+				/* Register Dequeue event with newpolicy_event_log*/
+				register_newpolicy_event(sched_clock(), msg, NEWPOLICY_DEQUEUE);
+
 				list_del(&tempNode->NEWPOLICY_list_head);
 				kfree(tempNode);
 				atomic_dec(&(rq->NEWPOLICY_rq.nr_running));

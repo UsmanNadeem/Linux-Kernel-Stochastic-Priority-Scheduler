@@ -2630,4 +2630,34 @@ static inline unsigned long rlimit_max(unsigned int limit)
 
 #endif /* __KERNEL__ */
 
+#ifdef  CONFIG_SCHED_NEWPOLICY_POLICY
+
+#define NEWPOLICY_MSG_SIZE      400
+#define NEWPOLICY_MAX_EVENT_LINES   10000
+
+#define NEWPOLICY_ENQUEUE       1
+#define NEWPOLICY_DEQUEUE       2
+#define NEWPOLICY_CONTEXT_SWITCH    3
+#define NEWPOLICY_MSG       4
+
+struct newpolicy_event{
+    int action;
+    unsigned long long timestamp;
+    char msg[NEWPOLICY_MSG_SIZE];
+};
+
+struct newpolicy_event_log{
+    struct newpolicy_event newpolicy_event[NEWPOLICY_MAX_EVENT_LINES];
+    unsigned long lines;
+    unsigned long cursor;
+};
+
+void init_newpolicy_event_log(void);
+struct newpolicy_event_log * get_newpolicy_event_log(void);
+void register_newpolicy_event(unsigned long long t, char *m, int a);
+
+#endif
+
+
+
 #endif
