@@ -1,0 +1,722 @@
+diff --git a/Makefile b/Makefile
+index ebfa20c..da10ab6 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,7 @@
+ VERSION = 2
+ PATCHLEVEL = 6
+ SUBLEVEL = 32
+-EXTRAVERSION = .27
++EXTRAVERSION = .27.NEWPOLICY
+ NAME = Man-Eating Seals of Antiquity
+ 
+ # *DOCUMENTATION*
+diff --git a/arch/x86/Kconfig b/arch/x86/Kconfig
+index cb5a57c..7fc67f3 100644
+--- a/arch/x86/Kconfig
++++ b/arch/x86/Kconfig
+@@ -2079,6 +2079,13 @@ config HAVE_ATOMIC_IOMAP
+ 	def_bool y
+ 	depends on X86_32
+ 
++menu "NEWPOLICY scheduler"
++
++config SCHED_NEWPOLICY_POLICY
++	bool "NEWPOLICY scheduling policy"
++	default y
++endmenu
++
+ source "net/Kconfig"
+ 
+ source "drivers/Kconfig"
+diff --git a/fs/proc/Makefile b/fs/proc/Makefile
+index 11a7b5c..b76355a 100644
+--- a/fs/proc/Makefile
++++ b/fs/proc/Makefile
+@@ -19,6 +19,7 @@ proc-y	+= stat.o
+ proc-y	+= uptime.o
+ proc-y	+= version.o
+ proc-y	+= softirqs.o
++proc-y  += proc_newpolicy.o
+ proc-$(CONFIG_PROC_SYSCTL)	+= proc_sysctl.o
+ proc-$(CONFIG_NET)		+= proc_net.o
+ proc-$(CONFIG_PROC_KCORE)	+= kcore.o
+diff --git a/fs/proc/proc_newpolicy.c b/fs/proc/proc_newpolicy.c
+new file mode 100644
+index 0000000..54162c6
+--- /dev/null
++++ b/fs/proc/proc_newpolicy.c
+@@ -0,0 +1,116 @@
++/*
++ *  linux/fs/proc/proc_misc.c
++ *
++ *  linux/fs/proc/array.c
++ *  Copyright (C) 1992  by Linus Torvalds
++ *  based on ideas by Darren Senn
++ *
++ *  This used to be the part of array.c. See the rest of history and credits
++ *  there. I took this into a separate file and switched the thing to generic
++ *  proc_file_inode_operations, leaving in array.c only per-process stuff.
++ *  Inumbers allocation made dynamic (via create_proc_entry()).  AV, May 1999.
++ *
++ * Changes:
++ * Fulton Green      :  Encapsulated position metric calculations.
++ *                      <kernel@FultonGreen.com>
++ */
++
++#include <linux/types.h>
++#include <linux/errno.h>
++#include <linux/time.h>
++#include <linux/kernel.h>
++#include <linux/kernel_stat.h>
++#include <linux/fs.h>
++#include <linux/tty.h>
++#include <linux/string.h>
++#include <linux/mman.h>
++#include <linux/proc_fs.h>
++#include <linux/ioport.h>
++#include <linux/mm.h>
++#include <linux/mmzone.h>
++#include <linux/pagemap.h>
++#include <linux/swap.h>
++#include <linux/slab.h>
++#include <linux/smp.h>
++#include <linux/signal.h>
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/seq_file.h>
++#include <linux/times.h>
++#include <linux/profile.h>
++#include <linux/utsname.h>
++#include <linux/blkdev.h>
++#include <linux/hugetlb.h>
++#include <linux/jiffies.h>
++#include <linux/sysrq.h>
++#include <linux/vmalloc.h>
++#include <linux/crash_dump.h>
++#include <linux/pid_namespace.h>
++#include <asm/uaccess.h>
++#include <asm/pgtable.h>
++#include <asm/io.h>
++#include <asm/tlb.h>
++#include <asm/div64.h>
++#include "internal.h"
++
++#ifdef  CONFIG_SCHED_NEWPOLICY_POLICY
++#define NEWPOLICY_MAX_CURSOR_LINES_EVENTS   1
++
++
++static int newpolicy_open(struct inode *inode, struct file *file)
++{
++        return 0;
++}
++
++static ssize_t newpolicy_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
++{
++    char buffer[NEWPOLICY_MSG_SIZE];
++    unsigned int len = 0, k, i;
++    struct newpolicy_event_log *log=NULL;
++    buffer[0] = '\0';
++    
++    log = get_newpolicy_event_log();
++    
++    if(log) {
++        if(log->cursor < log->lines) {
++            k = (log->lines > (log->cursor + NEWPOLICY_MAX_CURSOR_LINES_EVENTS)) ? 
++                (log->cursor + NEWPOLICY_MAX_CURSOR_LINES_EVENTS) : (log->lines);
++            for(i = log->cursor; i < k; i++) {
++                len = snprintf(buffer, count, "%s%d,%llu,%s\n", buffer, 
++                        log->newpolicy_event[i].action, log->newpolicy_event[i].timestamp, 
++                        log->newpolicy_event[i].msg);
++            }
++            log->cursor = k;
++        }
++       // if(len) 
++            copy_to_user(buf, buffer, len);
++		//printk(KERN_INFO "Error in proc_newpolicy.c/newpolicy_read(...): copy_to_user\n");
++    }
++    return len;
++}
++
++static int newpolicy_release(struct inode *inode, struct file *file)
++{
++        return 0;
++}
++
++static const struct file_operations proc_newpolicy_operations = {
++        .open           = newpolicy_open,
++        .read           = newpolicy_read,
++        .release        = newpolicy_release,
++};
++
++int __init proc_newpolicy_init(void)
++{
++    /* create a proc file with name "lkp3_newpolicy_event" and default permissions 
++     * 0444 directly under /proc directory.*/
++
++    if (!proc_create("lkp3_newpolicy_event", 0, NULL, &proc_newpolicy_operations))
++        return -ENOMEM;
++
++    return 0;
++}
++module_init(proc_newpolicy_init);
++#endif
++
++
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index 957a25f..6b48087 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -38,6 +38,15 @@
+ #define SCHED_BATCH		3
+ /* SCHED_ISO: reserved but not implemented yet */
+ #define SCHED_IDLE		5
++	
++#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++#define SCHED_NEWPOLICY		6
++// todo check numbers priority = 0-139 (MAX_PRIO -1) zero being the highest
++#define MIN_TICKETS		1
++#define MAX_TICKETS		140
++#define TICKETS_PER_PRIORITY		1
++#endif
++
+ /* Can be ORed in to make sure the process is reverted back to SCHED_NORMAL on fork */
+ #define SCHED_RESET_ON_FORK     0x40000000
+ 
+@@ -1222,6 +1231,10 @@ struct sched_rt_entity {
+ struct rcu_node;
+ 
+ struct task_struct {
++	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++		unsigned long long numTickets;
++	#endif
++
+ 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
+ 	void *stack;
+ 	atomic_t usage;
+@@ -2617,4 +2630,34 @@ static inline unsigned long rlimit_max(unsigned int limit)
+ 
+ #endif /* __KERNEL__ */
+ 
++#ifdef  CONFIG_SCHED_NEWPOLICY_POLICY
++
++#define NEWPOLICY_MSG_SIZE      400
++#define NEWPOLICY_MAX_EVENT_LINES   10000
++
++#define NEWPOLICY_ENQUEUE       1
++#define NEWPOLICY_DEQUEUE       2
++#define NEWPOLICY_CONTEXT_SWITCH    3
++#define NEWPOLICY_MSG       4
++
++struct newpolicy_event{
++    int action;
++    unsigned long long timestamp;
++    char msg[NEWPOLICY_MSG_SIZE];
++};
++
++struct newpolicy_event_log{
++    struct newpolicy_event newpolicy_event[NEWPOLICY_MAX_EVENT_LINES];
++    unsigned long lines;
++    unsigned long cursor;
++};
++
++void init_newpolicy_event_log(void);
++struct newpolicy_event_log * get_newpolicy_event_log(void);
++void register_newpolicy_event(unsigned long long t, char *m, int a);
++
++#endif
++
++
++
+ #endif
+diff --git a/kernel/sched.c b/kernel/sched.c
+index 9652eca..0c249fc 100644
+--- a/kernel/sched.c
++++ b/kernel/sched.c
+@@ -121,7 +121,11 @@
+ 
+ static inline int rt_policy(int policy)
+ {
+-	if (unlikely(policy == SCHED_FIFO || policy == SCHED_RR))
++	if (unlikely(policy == SCHED_FIFO || policy == SCHED_RR
++		#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++		|| policy == SCHED_NEWPOLICY
++		#endif
++	))
+ 		return 1;
+ 	return 0;
+ }
+@@ -516,6 +520,16 @@ static struct root_domain def_root_domain;
+ 
+ #endif
+ 
++#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++
++// I dont think we need a rb tree since we will be iterating....just use a list
++struct NEWPOLICY_rq {
++	struct task_struct *task;
++	struct list_head NEWPOLICY_list_head;
++	atomic_t nr_running;
++};
++#endif
++
+ /*
+  * This is the main, per-CPU runqueue data structure.
+  *
+@@ -526,6 +540,9 @@ static struct root_domain def_root_domain;
+ struct rq {
+ 	/* runqueue lock: */
+ 	spinlock_t lock;
++	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++		struct NEWPOLICY_rq NEWPOLICY_rq;
++	#endif
+ 
+ 	/*
+ 	 * nr_running and cpu_load should be in the same cacheline because
+@@ -1847,13 +1864,26 @@ static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
+ 
+ #include "sched_stats.h"
+ #include "sched_idletask.c"
++#ifdef	CONFIG_SCHED_NEWPOLICY_POLICY
++# include "sched_newpolicy.c"
++#endif
+ #include "sched_fair.c"
++
+ #include "sched_rt.c"
++
++
++
+ #ifdef CONFIG_SCHED_DEBUG
+ # include "sched_debug.c"
+ #endif
+ 
+-#define sched_class_highest (&rt_sched_class)
++
++//#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++//	#define sched_class_highest (&newpolicy_sched_class)
++//#else
++	#define sched_class_highest (&rt_sched_class)
++//#endif
++
+ #define for_each_class(class) \
+    for (class = sched_class_highest; class; class = class->next)
+ 
+@@ -5560,6 +5590,9 @@ asmlinkage void __sched schedule(void)
+ 	unsigned long *switch_count;
+ 	struct rq *rq;
+ 	int cpu;
++	
++	/*NEWPOLICY_sched_log*/
++	char msg[NEWPOLICY_MSG_SIZE];
+ 
+ need_resched:
+ 	preempt_disable();
+@@ -5591,12 +5624,39 @@ need_resched_nonpreemptible:
+ 
+ 	pre_schedule(rq, prev);
+ 
++
+ 	if (unlikely(!rq->nr_running))
+ 		idle_balance(cpu, rq);
+ 
+ 	put_prev_task(rq, prev);
+ 	next = pick_next_task(rq);
+ 
++
++    /* Log context switch events for NEWPOLICY scheduler */
++#ifdef  CONFIG_SCHED_NEWPOLICY_POLICY
++	if(prev->policy == SCHED_NEWPOLICY || next->policy == SCHED_NEWPOLICY) {
++		/* if both processes have NEWPOLICY scheduling class, the message 
++		* format is to print only PIDs of both the processes */
++		if(prev->policy == SCHED_NEWPOLICY && next->policy == SCHED_NEWPOLICY) {
++			snprintf(msg, NEWPOLICY_MSG_SIZE, "prev->(%d), next->(%d)", 
++				prev->pid, next->pid);
++		} else {
++			/* if scheduling class of one of the processes is not SCHED_NEWPOLICY
++			 * print an aesterik before its PID to indicate so. */
++			if(prev->policy==SCHED_NEWPOLICY){
++				snprintf(msg, NEWPOLICY_MSG_SIZE, "prev->(%d),next->(*%d)", 
++					prev->pid, next->pid);
++			} else {
++				snprintf(msg, NEWPOLICY_MSG_SIZE, "prev->(*%d),next->(%d)", 
++					prev->pid, next->pid);
++			}     
++		}     
++		/* Add the event to the newpolicy_event_log*/
++		register_newpolicy_event(sched_clock(), msg, NEWPOLICY_CONTEXT_SWITCH);
++	}
++#endif
++
++
+ 	if (likely(prev != next)) {
+ 		sched_info_switch(prev, next);
+ 		perf_event_task_sched_out(prev, next, cpu);
+@@ -6333,6 +6393,11 @@ __setscheduler(struct rq *rq, struct task_struct *p, int policy, int prio)
+ 	case SCHED_RR:
+ 		p->sched_class = &rt_sched_class;
+ 		break;
++	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++	case SCHED_NEWPOLICY:
++		p->sched_class = &newpolicy_sched_class;
++		break;
++	#endif
+ 	}
+ 
+ 	p->rt_priority = prio;
+@@ -6380,7 +6445,11 @@ recheck:
+ 
+ 		if (policy != SCHED_FIFO && policy != SCHED_RR &&
+ 				policy != SCHED_NORMAL && policy != SCHED_BATCH &&
+-				policy != SCHED_IDLE)
++				policy != SCHED_IDLE
++				#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++				&& policy !=SCHED_NEWPOLICY
++				#endif
++				)
+ 			return -EINVAL;
+ 	}
+ 
+@@ -6478,6 +6547,7 @@ recheck:
+ 
+ 	oldprio = p->prio;
+ 	prev_class = p->sched_class;
++
+ 	__setscheduler(rq, p, policy, param->sched_priority);
+ 
+ 	if (running)
+@@ -9607,6 +9677,10 @@ void __init sched_init(void)
+ 		init_task_group.shares = init_task_group_load;
+ 		INIT_LIST_HEAD(&rq->leaf_cfs_rq_list);
+ #ifdef CONFIG_CGROUP_SCHED
++
++	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++		init_newpolicy_rq(&rq->NEWPOLICY_rq);
++	#endif
+ 		/*
+ 		 * How much cpu bandwidth does init_task_group get?
+ 		 *
+@@ -9732,6 +9806,9 @@ void __init sched_init(void)
+ #endif /* SMP */
+ 
+ 	perf_event_init();
++	#ifdef CONFIG_SCHED_NEWPOLICY_POLICY
++		init_newpolicy_event_log();
++	#endif
+ 
+ 	scheduler_running = 1;
+ }
+diff --git a/kernel/sched_fair.c b/kernel/sched_fair.c
+index 01e311e..a560dfb 100644
+--- a/kernel/sched_fair.c
++++ b/kernel/sched_fair.c
+@@ -2094,7 +2094,7 @@ unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task)
+  * All the scheduling class methods:
+  */
+ static const struct sched_class fair_sched_class = {
+-	.next			= &idle_sched_class,
++	.next			= &newpolicy_sched_class,
+ 	.enqueue_task		= enqueue_task_fair,
+ 	.dequeue_task		= dequeue_task_fair,
+ 	.yield_task		= yield_task_fair,
+diff --git a/kernel/sched_newpolicy.c b/kernel/sched_newpolicy.c
+new file mode 100644
+index 0000000..3dc8d7a
+--- /dev/null
++++ b/kernel/sched_newpolicy.c
+@@ -0,0 +1,284 @@
++#include <linux/random.h>
++
++#ifndef NEWPOLICY_CLASS
++#define NEWPOLICY_CLASS
++const struct sched_class newpolicy_sched_class;
++#endif
++
++/**
++ *  * Log functions for the scheduler
++ *   */
++struct newpolicy_event_log newpolicy_event_log;
++
++/**
++ *  * Return newpolicy_event_log structure
++ *   */
++struct newpolicy_event_log * get_newpolicy_event_log()
++{
++        return &newpolicy_event_log;
++}
++
++void init_newpolicy_event_log(void)
++{
++    char msg[NEWPOLICY_MSG_SIZE];
++    newpolicy_event_log.lines = newpolicy_event_log.cursor = 0;
++    /* Add initialization message to the buffer */
++    snprintf(msg, NEWPOLICY_MSG_SIZE, "init_newpolicy_event_log : (Lines: %lu - Cursor: %lu)",
++            newpolicy_event_log.lines, newpolicy_event_log.cursor);
++
++    register_newpolicy_event(sched_clock(), msg, NEWPOLICY_MSG);
++}
++
++
++void register_newpolicy_event(unsigned long long t, char *m, int a)
++{
++    /* Set action, timestamp and message in the structure newpolicy_event */
++    if(newpolicy_event_log.lines < NEWPOLICY_MAX_EVENT_LINES) {
++        newpolicy_event_log.newpolicy_event[newpolicy_event_log.lines].action = a;
++        newpolicy_event_log.newpolicy_event[newpolicy_event_log.lines].timestamp = t;
++       strncpy(newpolicy_event_log.newpolicy_event[newpolicy_event_log.lines].msg,
++                m, NEWPOLICY_MSG_SIZE-1);
++        newpolicy_event_log.lines++;
++    } else {
++        printk(KERN_ALERT "register_newpolicy_event: full\n");
++    }
++}
++
++
++void init_newpolicy_rq(struct NEWPOLICY_rq *newpolicy_rq)
++{
++	INIT_LIST_HEAD(&newpolicy_rq->NEWPOLICY_list_head);
++	atomic_set(&newpolicy_rq->nr_running,0);
++}
++
++static void enqueue_task_newpolicy(struct rq *rq, struct task_struct *p, int wakeup, bool head)
++{	
++	char msg[NEWPOLICY_MSG_SIZE];
++	if(p){
++		struct NEWPOLICY_rq *newNode;
++		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice on enqueue
++		// #define DEF_TIMESLICE		(100 * HZ / 1000)
++		newNode = (struct NEWPOLICY_rq *) kzalloc (sizeof(struct NEWPOLICY_rq), GFP_KERNEL);
++		if (newNode == NULL) {
++			printk(KERN_INFO "Error in enqueue_task_newpolicy: kzalloc\n");
++			return;
++		}
++		p->numTickets = MAX_TICKETS - p->prio;
++		newNode->task = p;
++
++		list_add (&(newNode->NEWPOLICY_list_head), &(rq->NEWPOLICY_rq.NEWPOLICY_list_head));
++		atomic_inc(&(rq->NEWPOLICY_rq.nr_running));
++
++		snprintf(msg, NEWPOLICY_MSG_SIZE, "(PID: %d : Tickets: %llu)", p->pid, p->numTickets);
++		/* Register Enqueue event with newpolicy_event_log */
++		register_newpolicy_event(sched_clock(), msg, NEWPOLICY_ENQUEUE);
++	}
++}
++
++static void dequeue_task_newpolicy(struct rq *rq, struct task_struct *p, int sleep)
++{
++	char msg[NEWPOLICY_MSG_SIZE];
++	if(rq && p) {
++		struct NEWPOLICY_rq *tempNode, *next;
++		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
++			if (tempNode && tempNode->task == p) {
++				snprintf(msg, NEWPOLICY_MSG_SIZE, "(PID: %d : Tickets: %llu)", p->pid, p->numTickets);
++				/* Register Dequeue event with newpolicy_event_log*/
++				register_newpolicy_event(sched_clock(), msg, NEWPOLICY_DEQUEUE);
++
++				list_del(&tempNode->NEWPOLICY_list_head);
++				kfree(tempNode);
++				atomic_dec(&(rq->NEWPOLICY_rq.nr_running));
++				return;
++			}
++		}
++	}
++}
++
++
++static struct task_struct *pick_next_task_newpolicy(struct rq *rq)
++{
++	struct NEWPOLICY_rq *t=NULL;
++	struct NEWPOLICY_rq *tempNode, *next;
++	unsigned long long totalTickets = 0;
++	unsigned long long runningTotal = 0;
++	unsigned int *randomNumber;
++
++	if (rq->NEWPOLICY_rq.nr_running.counter == 0)  // list is empty
++        	return NULL;
++
++	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
++		if (tempNode && tempNode->task) {
++			totalTickets += tempNode->task->numTickets;
++		}
++	}
++
++	if (totalTickets == 0) {
++		return NULL;
++	}
++
++	// generate random number from 1-totalTickets
++	randomNumber = (int*) kzalloc(sizeof(int), GFP_KERNEL);
++
++	if (randomNumber == NULL) {
++		printk(KERN_INFO "Error in pick_next_task_newpolicy: kzalloc\n");
++		return NULL;
++	}
++
++	*randomNumber = 0;
++	get_random_bytes(randomNumber, sizeof(unsigned int));
++	*randomNumber = (*randomNumber)%totalTickets +1;  // mod is biased
++
++	//while (*randomNumber < 1 || *randomNumber > totalTickets)
++	//	get_random_bytes(randomNumber, sizeof(unsigned int));
++
++	list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
++		if (tempNode && tempNode->task && !t) {
++			runningTotal += tempNode->task->numTickets;  // would be atleast 1
++			if (runningTotal >= *randomNumber) {
++				t = tempNode;
++				break;
++			}
++		}
++	}	
++	kfree(randomNumber);
++
++	if(t && t->task) {
++		printk(KERN_INFO "%d\n", t->task->pid);
++		return t->task;
++	}
++
++	return NULL;
++}
++
++static void check_preempt_curr_newpolicy(struct rq *rq, struct task_struct *p, int flags)
++{
++	// This function checks if a task that entered the runnable state should
++	// preempt the currently running task.
++
++	//if (p->sched_class != &idle_sched_class && p->sched_class != &fair_sched_class )
++	if (rq->curr->policy!=SCHED_NEWPOLICY) {  // never executes because curr policy is always newpolicy
++		resched_task(rq->curr); 
++	}
++	else if (p->policy!=SCHED_IDLE && p->policy!=SCHED_BATCH) {  // Dont preempt for IDLE and BATCH jobs
++		// preempt for higer priority tasks like RT etc.
++		// preempt without checking prio if same policy because probabilistic lottery system will take of it next time
++		resched_task(rq->curr);
++	}
++}
++
++
++static void put_prev_task_newpolicy(struct rq *rq, struct task_struct *p)
++{
++	if (p->state & TASK_DEAD)
++		return;
++	if (p->state != TASK_RUNNING)
++		return;
++
++	if(rq && p) {
++		struct NEWPOLICY_rq *tempNode, *next;
++		p->rt.time_slice = DEF_TIMESLICE;  // reset timeslice 
++		//#define DEF_TIMESLICE		(100 * HZ / 1000)
++		
++		list_for_each_entry_safe (tempNode, next, &(rq->NEWPOLICY_rq.NEWPOLICY_list_head), NEWPOLICY_list_head) {
++			if (tempNode && tempNode->task == p) {
++				// already exists so dont enqueue again
++				return;
++			}
++		}
++		enqueue_task_newpolicy(rq, p, 0, false);
++	}
++}
++
++static void set_curr_task_newpolicy(struct rq *rq)
++{
++/* Account for a task changing its policy or group.
++ *
++ * This routine is mostly called to set cfs_rq->curr field when a task
++ * migrates between groups/classes.
++ */
++
++	rq->curr->numTickets = MAX_TICKETS - rq->curr->prio;
++	//printk(KERN_INFO "Prio is %d\n", rq->curr->prio);
++}
++
++
++static void task_tick_newpolicy(struct rq *rq, struct task_struct *p, int queued)
++{
++	if (--p->rt.time_slice)  // decrement timeslice and if not 0 no need to do anything
++		return;
++
++	p->rt.time_slice = DEF_TIMESLICE;  // reset
++	// #define DEF_TIMESLICE		(100 * HZ / 1000)
++
++	if (rq->NEWPOLICY_rq.nr_running.counter > 1)  
++		// if there is another task on the rq reschedule 
++		// otherwise there is no need to do context switch
++		resched_task(p);
++}
++
++
++
++
++static void yield_task_newpolicy(struct rq *rq)
++{
++	// dont need to do anything
++
++	// This function is basically just a dequeue followed by an enqueue, unless the
++	// compat_yield sysctl is turned on; in that case, it places the scheduling
++	// entity at the right-most end of the red-black tree.
++}
++
++
++
++static void switched_to_newpolicy(struct rq *rq, struct task_struct *p,
++                           int running)
++{
++	p->numTickets = MAX_TICKETS - p->prio;
++	//printk(KERN_INFO "Prio is %d\n", p->prio);
++}
++
++
++
++static void prio_changed_newpolicy(struct rq *rq, struct task_struct *p,
++			    int oldprio, int running)
++{
++	p->numTickets = MAX_TICKETS - p->prio;
++}
++
++static int select_task_rq_newpolicy(struct rq *rq, struct task_struct *p, int sd_flag, int flags) 
++{ 
++ 
++	if (sd_flag != SD_BALANCE_WAKE) 
++		return smp_processor_id(); 
++ 
++	return task_cpu(p); 
++} 
++
++
++const struct sched_class newpolicy_sched_class = {
++	.next 			= &idle_sched_class,
++	.enqueue_task		= enqueue_task_newpolicy,
++	.dequeue_task		= dequeue_task_newpolicy,
++
++	.check_preempt_curr	= check_preempt_curr_newpolicy,
++
++	.pick_next_task		= pick_next_task_newpolicy,
++	.put_prev_task		= put_prev_task_newpolicy,
++
++	.set_curr_task          = set_curr_task_newpolicy,
++	.task_tick		= task_tick_newpolicy,
++	.yield_task		= yield_task_newpolicy,
++
++	// added later
++	.switched_to		= switched_to_newpolicy,
++	.prio_changed		= prio_changed_newpolicy,
++
++
++//	.get_rr_interval	= get_rr_interval_rt,
++
++#ifdef CONFIG_SMP 
++	.select_task_rq		= select_task_rq_newpolicy,
++
++#endif
++};
+diff --git a/kernel/sched_rt.c b/kernel/sched_rt.c
+index af24fab..3d298e7 100644
+--- a/kernel/sched_rt.c
++++ b/kernel/sched_rt.c
+@@ -2,7 +2,6 @@
+  * Real-Time Scheduling Class (mapped to the SCHED_FIFO and SCHED_RR
+  * policies)
+  */
+-
+ #ifdef CONFIG_RT_GROUP_SCHED
+ 
+ #define rt_entity_is_task(rt_se) (!(rt_se)->my_q)
